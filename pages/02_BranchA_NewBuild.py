@@ -10,7 +10,6 @@ def guard():
     if st.session_state.get("service_type") != "A":
         st.switch_page("pages/01_ServiceType.py")
 
-
 guard()
 
 st.title("簡易諮詢 / 了解需求")
@@ -40,14 +39,12 @@ div[data-baseweb="slider"] span {
 )
 
 # -------------------------
-# ✅ 圖片設定（新增）
+# ✅ 圖片設定（用你提供程式碼修正）
 # -------------------------
-# 你提供的 Windows 圖片資料夾
-Images_DIR_PRIMARY = Path(r"C:\Users\acefz\Desktop\Python\PC_Form_Project\Assets\Images")
-# fallback：若將來要上傳到 Streamlit，建議把 Images 資料夾放在專案根目錄
-Images_DIR_FALLBACK = Path("Images")
-
-Images_DIR = Images_DIR_PRIMARY if Images_DIR_PRIMARY.exists() else Images_DIR_FALLBACK
+# ❗ Streamlit Cloud 沒有 C:\Users\...，要用專案內相對路徑
+# 你請把圖片放在：PC_Form_Project/Assets/Images/
+PROJECT_ROOT = Path(__file__).resolve().parents[1]  # pages/02_... -> 回到專案根
+Images_DIR = PROJECT_ROOT / "Assets" / "Images"
 
 CASE_SIZE_IMAGE = {
     "Mini-ITX（小型主機）": "ITX",
@@ -61,7 +58,7 @@ STYLE_IMAGE = {
     "靜音": "Mute",
     "海景": "Sea",
     "開放": "Open",
-    "開放式": "Open",  # 兼容未來可能改成「開放式」
+    "開放式": "Open",  # 兼容
 }
 
 COOLING_IMAGE = {
@@ -72,10 +69,17 @@ COOLING_IMAGE = {
 }
 
 def _find_image_path(stem: str) -> Path | None:
-    """自動尋找 Images 目錄下是否有 stem.png / stem.jpg / stem.jpeg / stem.webp"""
-    for ext in ("*.PNG", "*.JPG",  "*.JPEG", "*.WEBP", "*.png", "*.jpg", "*.jpeg", "*.webp"):
-        p = Images_DIR / f"{stem}{ext}"
-        if p.exists():
+    """
+    ✅ 修正重點：
+    你原本用 f"{stem}{ext}" 且 ext 內含 *.JPG，會變成 ATX*.JPG（不存在）
+    正確做法：用 glob(f"{stem}.*") 找到 ATX.JPG / ATX.png...
+    """
+    if not Images_DIR.exists():
+        return None
+
+    allow = {".png", ".jpg", ".jpeg", ".webp"}
+    for p in sorted(Images_DIR.glob(f"{stem}.*")):
+        if p.is_file() and p.suffix.lower() in allow:
             return p
     return None
 
@@ -161,11 +165,9 @@ saved = (
     else {}
 )
 
-
 def ss_setdefault(key: str, value):
     if key not in st.session_state:
         st.session_state[key] = value
-
 
 # 即時互動，不用 st.form
 ss_setdefault("a_usage", saved.get("usage", usage_options[0]))
@@ -205,9 +207,7 @@ if st.session_state.a_usage == OTHER_USAGE_LABEL:
 
 st.selectbox("整體效能", perf_options, key="a_perf")
 
-# ✅ 放大的滑桿（由 CSS 控制）
 st.slider("預算規劃", 0, 500_000, step=1000, key="a_budget")
-# ✅ 也同步顯示格式化金額（更好讀）
 st.caption(f"目前預算：NT$ {int(st.session_state.a_budget):,}")
 
 st.divider()
@@ -222,15 +222,15 @@ st.divider()
 
 st.markdown('<div class="section-title">散熱與外觀</div>', unsafe_allow_html=True)
 
-# ✅ 散熱類型（選完顯示圖片）
+# 散熱類型（選完顯示圖片）
 st.selectbox("散熱類型", cooling_options, key="a_cooling")
 show_option_image(COOLING_IMAGE, st.session_state.a_cooling)
 
-# ✅ 主機外觀（選完顯示圖片）
+# 主機外觀（選完顯示圖片）
 st.selectbox("主機外觀", case_options, key="a_case_size")
 show_option_image(CASE_SIZE_IMAGE, st.session_state.a_case_size)
 
-# ✅ 外觀風格（選完顯示圖片）
+# 外觀風格（選完顯示圖片）
 st.selectbox("外觀風格", style_options, key="a_style")
 show_option_image(STYLE_IMAGE, st.session_state.a_style)
 
@@ -259,7 +259,6 @@ col1, col2 = st.columns([1, 1])
 
 with col2:
     if st.button("繼續", type="primary"):
-        # 你如果不想強制必填，可以把這些檢查刪掉
         if st.session_state.a_usage == OTHER_USAGE_LABEL and not st.session_state.a_usage_other.strip():
             st.error("你選擇了「其他用途 & 使用軟體」，請填寫內容。")
             st.stop()
