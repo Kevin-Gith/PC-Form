@@ -1,14 +1,17 @@
 import streamlit as st
 from UI import hide_sidebar
 from pathlib import Path
+from typing import Optional
 
 hide_sidebar(page_title="簡易諮詢 / 了解需求")
+
 
 def guard():
     if not st.session_state.get("agreed", False):
         st.switch_page("pages/00_Notice.py")
     if st.session_state.get("service_type") != "A":
         st.switch_page("pages/01_ServiceType.py")
+
 
 guard()
 
@@ -41,10 +44,10 @@ div[data-baseweb="slider"] span {
 # -------------------------
 # ✅ 圖片設定（用你提供程式碼修正）
 # -------------------------
-# ❗ Streamlit Cloud 沒有 C:\Users\...，要用專案內相對路徑
-# 你請把圖片放在：PC_Form_Project/Assets/Images/
-PROJECT_ROOT = Path(__file__).resolve().parents[1]  # pages/02_... -> 回到專案根
-Images_DIR = PROJECT_ROOT / "Assets" / "Images"
+# Streamlit Cloud 沒有 C:\Users\...，只用專案內相對路徑
+# 你的 repo 結構：Assets/Images/ITX.jpg ... 這裡就要指到 Assets/Images
+ROOT_DIR = Path(__file__).resolve().parents[1]  # pages/02_... -> 回到專案根目錄
+Images_DIR = ROOT_DIR / "Assets" / "Images"
 
 CASE_SIZE_IMAGE = {
     "Mini-ITX（小型主機）": "ITX",
@@ -68,20 +71,30 @@ COOLING_IMAGE = {
     # 「依建議配置」不顯示圖片
 }
 
-def _find_image_path(stem: str) -> Path | None:
+
+def _find_image_path(stem: str) -> Optional[Path]:
     """
-    ✅ 修正重點：
-    你原本用 f"{stem}{ext}" 且 ext 內含 *.JPG，會變成 ATX*.JPG（不存在）
-    正確做法：用 glob(f"{stem}.*") 找到 ATX.JPG / ATX.png...
+    ✅ 穩定版找圖：
+    - 不依賴 glob(f"{stem}.*") 的大小寫與副檔名
+    - 支援 .png/.jpg/.jpeg/.webp，並且檔名大小寫不敏感
+    - 例如：stem="ITX" 可以找到 ITX.jpg / itx.JPG / ITX.jpeg ...
     """
     if not Images_DIR.exists():
         return None
 
     allow = {".png", ".jpg", ".jpeg", ".webp"}
-    for p in sorted(Images_DIR.glob(f"{stem}.*")):
-        if p.is_file() and p.suffix.lower() in allow:
+
+    # 逐一掃描資料夾檔案，做 stem 比對（不怕大小寫）
+    for p in Images_DIR.iterdir():
+        if not p.is_file():
+            continue
+        if p.suffix.lower() not in allow:
+            continue
+        if p.stem.lower() == stem.lower():
             return p
+
     return None
+
 
 def show_option_image(mapping: dict, selected: str) -> None:
     """選到某選項時，在下方顯示對應圖片（找不到檔案就提示）"""
@@ -165,9 +178,11 @@ saved = (
     else {}
 )
 
+
 def ss_setdefault(key: str, value):
     if key not in st.session_state:
         st.session_state[key] = value
+
 
 # 即時互動，不用 st.form
 ss_setdefault("a_usage", saved.get("usage", usage_options[0]))
@@ -280,7 +295,9 @@ with col2:
             "performance": st.session_state.a_perf,
             "budget": int(st.session_state.a_budget),
             "peripherals_included": st.session_state.a_peripherals_included,
-            "peripherals": st.session_state.a_peripherals if st.session_state.a_peripherals_included == "包含" else [],
+            "peripherals": st.session_state.a_peripherals
+            if st.session_state.a_peripherals_included == "包含"
+            else [],
             "cooling": st.session_state.a_cooling,
             "case_size": st.session_state.a_case_size,
             "style": st.session_state.a_style,
