@@ -23,13 +23,13 @@ def _img_to_data_uri(path: Path) -> str:
     b64 = base64.b64encode(b).decode("utf-8")
     return f"data:{mime};base64,{b64}"
 
-def marquee_images(image_paths, height_px=520, duration_sec=35):
+def marquee_images(image_paths, height_px=100, duration_sec=100):
     """
     水平跑馬燈（由左到右移動，無限循環）。
     - height_px：顯示高度
     - duration_sec：跑完整段所需秒數（越大越慢）
     """
-    uris = [_img_to_data_uri(Path(p)) for p in image_paths]
+    uris = [_img_to_data_uri(Path(p)) for p in image_paths][::-1]
     # 為了無縫循環：把內容複製一份接在後面
     items = uris + uris
 
