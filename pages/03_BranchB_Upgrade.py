@@ -373,14 +373,14 @@ spec_block(
 
 st.markdown('<div class="section-title">升級需求</div>', unsafe_allow_html=True)
 
-st.multiselect("升級目標", upgrade_target_options, key="b_targets")
+st.multiselect("升級項目", upgrade_target_options, key="b_targets")
 if OTHER_TARGET_LABEL in st.session_state.b_targets:
-    st.text_input("其他目標說明", key="b_targets_other")
+    st.text_input("其他升級說明", key="b_targets_other")
 
 st.slider("升級預算", 0, 500_000, step=1000, key="b_budget")
 st.caption(f"目前預算：NT$ {int(st.session_state.b_budget):,}")
 
-st.selectbox("是否需要資料轉移", migrate_options, key="b_migrate")
+st.selectbox("資料轉移", migrate_options, key="b_migrate")
 
 st.divider()
 

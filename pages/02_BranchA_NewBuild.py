@@ -241,8 +241,8 @@ st.markdown('<div class="section-title">散熱與外觀</div>', unsafe_allow_htm
 st.selectbox("散熱類型", cooling_options, key="a_cooling")
 show_option_image(COOLING_IMAGE, st.session_state.a_cooling)
 
-# 主機外觀（選完顯示圖片）
-st.selectbox("主機外觀", case_options, key="a_case_size")
+# 主機尺寸（選完顯示圖片）
+st.selectbox("主機尺寸", case_options, key="a_case_size")
 show_option_image(CASE_SIZE_IMAGE, st.session_state.a_case_size)
 
 # 外觀風格（選完顯示圖片）
