@@ -25,21 +25,22 @@ def _img_to_data_uri(path: Path) -> str:
     return f"data:{mime};base64,{b64}"
 
 
-def marquee_images(image_paths, height_px=520, px_per_sec=35, reverse_order=False):
+def marquee_images(image_paths, height_px=520, px_per_sec=35):
     """
-    水平跑馬燈（無縫循環）+ 右上角放大按鈕（開啟全部圖片相簿）+ 點縮圖再放大
-    - height_px：跑馬燈圖片高度
-    - px_per_sec：每秒移動像素（越小越慢），建議 25~80
-    - reverse_order：是否反轉顯示順序（照片順序反了就 True）
+    A版本：
+    - 跑馬燈移動方向：左 → 右
+    - 顯示順序：01 → 18（你的檔名有補0，sorted() 正常）
+    - 右上角放大按鈕：開啟全部圖片縮圖牆
+    - 點跑馬燈/縮圖：單張放大（ESC/點背景/X 關閉）
+    - px_per_sec 越小越慢（建議 25~80）
     """
     uris = [_img_to_data_uri(Path(p)) for p in image_paths]
-    if reverse_order:
-        uris = uris[::-1]
 
     # 無縫跑馬燈：複製一份接在後面
     marquee_items = uris + uris
     marquee_html = "\n".join(
-        f'<img src="{u}" class="marquee-img" loading="lazy" />' for u in marquee_items
+        f'<img src="{u}" class="marquee-img" loading="lazy" />'
+        for u in marquee_items
     )
 
     # Gallery：只用原始清單（不要複製）
@@ -55,12 +56,13 @@ def marquee_images(image_paths, height_px=520, px_per_sec=35, reverse_order=Fals
         width: 100%;
         overflow: hidden;
         border-radius: 16px;
-        background: transparent;
         position: relative;
+        background: transparent;
       }}
 
       .marquee-track {{
         display: flex;
+        flex-direction: row-reverse; /* ✅ A版本關鍵：左→右時順序仍維持 01→18 */
         gap: 28px;
         align-items: center;
         width: max-content;
@@ -141,15 +143,6 @@ def marquee_images(image_paths, height_px=520, px_per_sec=35, reverse_order=Fals
       .modal-close:hover {{
         background: rgba(255,255,255,0.22);
       }}
-
-      /* ===== Zoom (single) ===== */
-      .zoom-img {{
-        max-width: min(1200px, 96vw);
-        max-height: 92vh;
-        border-radius: 14px;
-        box-shadow: 0 18px 60px rgba(0,0,0,0.6);
-        background: rgba(20,20,20,0.2);
-      }}
       .hint {{
         position: fixed;
         bottom: 14px;
@@ -159,6 +152,15 @@ def marquee_images(image_paths, height_px=520, px_per_sec=35, reverse_order=Fals
         font-size: 13px;
         z-index: 1000000;
         user-select: none;
+      }}
+
+      /* ===== Zoom (single) ===== */
+      .zoom-img {{
+        max-width: min(1200px, 96vw);
+        max-height: 92vh;
+        border-radius: 14px;
+        box-shadow: 0 18px 60px rgba(0,0,0,0.6);
+        background: rgba(20,20,20,0.2);
       }}
 
       /* ===== Gallery (all images) ===== */
@@ -231,7 +233,7 @@ def marquee_images(image_paths, height_px=520, px_per_sec=35, reverse_order=Fals
       </div>
     </div>
 
-    <!-- Gallery Modal: show ALL images -->
+    <!-- Gallery Modal -->
     <div id="galleryModal" class="modal" aria-hidden="true">
       <button id="galleryClose" class="modal-close" aria-label="Close">✕</button>
       <div class="gallery-panel" role="dialog" aria-modal="true">
@@ -246,7 +248,7 @@ def marquee_images(image_paths, height_px=520, px_per_sec=35, reverse_order=Fals
       <div class="hint">點背景或按 ESC 關閉</div>
     </div>
 
-    <!-- Zoom Modal: single image -->
+    <!-- Zoom Modal -->
     <div id="zoomModal" class="modal" aria-hidden="true">
       <button id="zoomClose" class="modal-close" aria-label="Close">✕</button>
       <img id="zoomImg" class="zoom-img" src="" alt="Zoomed image" />
@@ -385,8 +387,7 @@ if Intro_DIR.exists():
         imgs += sorted(Intro_DIR.glob(ext))
 
 if imgs:
-    # 速度：px_per_sec 越小越慢；照片順序反了就把 reverse_order=True
-    marquee_images([str(p) for p in imgs], height_px=520, px_per_sec=35, reverse_order=False)
+    marquee_images([str(p) for p in imgs], height_px=520, px_per_sec=35)
 else:
     st.info(
         "尚未放入簡介圖片。\n\n"
@@ -395,7 +396,6 @@ else:
 
 st.divider()
 
-# 記錄已看過簡介（可選）
 ss_setdefault("Intro_viewed", False)
 
 col1, col2 = st.columns([1, 1])
