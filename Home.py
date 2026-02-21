@@ -1,40 +1,14 @@
-import streamlit as st
-from UI import hide_sidebar
-from pathlib import Path
-import base64
-import mimetypes
-import streamlit.components.v1 as components
-
-hide_sidebar(page_title="電腦組裝服務諮詢表單")
-
-# -------------------------
-# Helpers
-# -------------------------
-def ss_setdefault(key: str, value):
-    if key not in st.session_state:
-        st.session_state[key] = value
-
-def _img_to_data_uri(path: Path) -> str:
-    """把本機圖片轉成 data URI，讓 HTML 可以直接顯示。"""
-    mime, _ = mimetypes.guess_type(str(path))
-    if mime is None:
-        mime = "image/png"
-    b = path.read_bytes()
-    b64 = base64.b64encode(b).decode("utf-8")
-    return f"data:{mime};base64,{b64}"
-
-def marquee_images(image_paths, height_px=500, duration_sec=10000):
+def marquee_images(image_paths, height_px=520, px_per_sec=45):
     """
-    水平跑馬燈（由左到右移動，無限循環）。
-    - height_px：顯示高度
-    - duration_sec：跑完整段所需秒數（越大越慢）
+    水平跑馬燈（無縫循環）+ 點擊放大檢視
+    - height_px：圖片高度
+    - px_per_sec：每秒移動像素（越小越慢），建議 25~80
     """
-    uris = [_img_to_data_uri(Path(p)) for p in image_paths][::-1]
-    # 為了無縫循環：把內容複製一份接在後面
-    items = uris + uris
+    uris = [_img_to_data_uri(Path(p)) for p in image_paths][::-1]  # 需要反轉順序就保留
+    items = uris + uris  # 無縫循環
 
     imgs_html = "\n".join(
-        f'<img src="{u}" class="marquee-img" />' for u in items
+        f'<img src="{u}" class="marquee-img" loading="lazy" />' for u in items
     )
 
     html = f"""
@@ -51,13 +25,8 @@ def marquee_images(image_paths, height_px=500, duration_sec=10000):
         gap: 28px;
         align-items: center;
         width: max-content;
-        animation: marquee {duration_sec}s linear infinite;
-      }}
-
-      /* 由左到右：從 -50% 滑回 0%（內容已複製一份才會無縫） */
-      @keyframes marquee {{
-        0%   {{ transform: translateX(-50%); }}
-        100% {{ transform: translateX(0%); }}
+        will-change: transform;
+        padding: 6px 0;
       }}
 
       .marquee-img {{
@@ -66,56 +35,172 @@ def marquee_images(image_paths, height_px=500, duration_sec=10000):
         object-fit: contain;
         border-radius: 12px;
         box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+        cursor: zoom-in;
+        user-select: none;
+        -webkit-user-drag: none;
       }}
 
-      /* 手機/窄螢幕：降低高度 */
+      .marquee-img:hover {{
+        transform: scale(1.01);
+        transition: transform 120ms ease;
+      }}
+
       @media (max-width: 768px) {{
-        .marquee-img {{
-          height: 320px;
-        }}
+        .marquee-img {{ height: 320px; }}
+      }}
+
+      /* ====== Modal (Zoom viewer) ====== */
+      .zoom-modal {{
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.75);
+        display: none;            /* hidden by default */
+        align-items: center;
+        justify-content: center;
+        z-index: 999999;
+        padding: 24px;
+      }}
+
+      .zoom-modal.open {{
+        display: flex;
+      }}
+
+      .zoom-content {{
+        max-width: min(1200px, 96vw);
+        max-height: 92vh;
+        width: auto;
+        height: auto;
+        border-radius: 14px;
+        box-shadow: 0 18px 60px rgba(0,0,0,0.6);
+        background: rgba(20,20,20,0.2);
+      }}
+
+      .zoom-close {{
+        position: fixed;
+        top: 18px;
+        right: 18px;
+        width: 44px;
+        height: 44px;
+        border-radius: 999px;
+        border: 0;
+        background: rgba(255,255,255,0.14);
+        color: rgba(255,255,255,0.95);
+        font-size: 22px;
+        cursor: pointer;
+        z-index: 1000000;
+      }}
+
+      .zoom-close:hover {{
+        background: rgba(255,255,255,0.22);
+      }}
+
+      .zoom-hint {{
+        position: fixed;
+        bottom: 14px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: rgba(255,255,255,0.75);
+        font-size: 13px;
+        z-index: 1000000;
+        user-select: none;
       }}
     </style>
 
     <div class="marquee-wrap">
-      <div class="marquee-track">
+      <div id="track" class="marquee-track">
         {imgs_html}
       </div>
     </div>
+
+    <!-- Zoom Modal -->
+    <div id="zoomModal" class="zoom-modal" aria-hidden="true">
+      <button id="zoomClose" class="zoom-close" aria-label="Close">✕</button>
+      <img id="zoomImg" class="zoom-content" src="" alt="Zoomed image" />
+      <div class="zoom-hint">點背景或按 ESC 關閉</div>
+    </div>
+
+    <script>
+      (function() {{
+        const track = document.getElementById("track");
+        const pxPerSec = {px_per_sec};
+
+        // ====== Marquee speed: fixed px/sec ======
+        function startMarquee() {{
+          const distance = track.scrollWidth / 2; // items duplicated
+          const duration = distance / pxPerSec;
+
+          const style = document.createElement("style");
+          style.innerHTML = `
+            @keyframes marquee {{
+              0%   {{ transform: translateX(0px); }}
+              100% {{ transform: translateX(-${{distance}}px); }}
+            }}
+            #track {{
+              animation: marquee ${{duration}}s linear infinite;
+            }}
+          `;
+          document.head.appendChild(style);
+        }}
+
+        // Wait images loaded so widths are correct
+        const imgs = track.querySelectorAll("img");
+        let loaded = 0;
+        imgs.forEach(img => {{
+          if (img.complete) {{
+            loaded++;
+            if (loaded === imgs.length) startMarquee();
+          }} else {{
+            img.addEventListener("load", () => {{
+              loaded++;
+              if (loaded === imgs.length) startMarquee();
+            }});
+            img.addEventListener("error", () => {{
+              loaded++;
+              if (loaded === imgs.length) startMarquee();
+            }});
+          }}
+        }});
+        setTimeout(startMarquee, 900);
+
+        // ====== Zoom modal ======
+        const modal = document.getElementById("zoomModal");
+        const zoomImg = document.getElementById("zoomImg");
+        const closeBtn = document.getElementById("zoomClose");
+
+        function openModal(src) {{
+          zoomImg.src = src;
+          modal.classList.add("open");
+          modal.setAttribute("aria-hidden", "false");
+        }}
+
+        function closeModal() {{
+          modal.classList.remove("open");
+          modal.setAttribute("aria-hidden", "true");
+          zoomImg.src = "";
+        }}
+
+        // Click any image to zoom
+        track.addEventListener("click", (e) => {{
+          const t = e.target;
+          if (t && t.tagName === "IMG") {{
+            openModal(t.src);
+          }}
+        }});
+
+        // Close: button
+        closeBtn.addEventListener("click", closeModal);
+
+        // Close: click backdrop (but not the image)
+        modal.addEventListener("click", (e) => {{
+          if (e.target === modal) closeModal();
+        }});
+
+        // Close: ESC
+        document.addEventListener("keydown", (e) => {{
+          if (e.key === "Escape") closeModal();
+        }});
+      }})();
+    </script>
     """
-    # height 要略大於圖片高度，避免被裁切
-    components.html(html, height=height_px + 40, scrolling=False)
 
-# -------------------------
-# 若你希望每次打開都當作新客戶（清空上次資料），保留即可
-st.session_state.clear()
-
-# -------------------------
-# UI
-# -------------------------
-st.title("電腦組裝服務諮詢表單")
-st.caption("歡迎閱讀簡介，點選「繼續」後進入事前須知。")
-
-Intro_DIR = Path("Assets/Intro")
-imgs = []
-if Intro_DIR.exists():
-    for ext in ("*.PNG", "*.JPG", "*.png", "*.jpg", "*.jpeg", "*.webp"):
-        imgs += sorted(Intro_DIR.glob(ext))
-
-if imgs:
-    # ✅ 改成跑馬燈顯示（由左到右）
-    marquee_images([str(p) for p in imgs], height_px=520, duration_sec=40)
-else:
-    st.info(
-        "尚未放入簡介圖片。\n\n"
-        "請將 PPT 每頁匯出成圖片（01.png、02.png…）後放到：Assets/Intro/"
-    )
-
-st.divider()
-
-ss_setdefault("Intro_viewed", False)
-
-col1, col2 = st.columns([1, 1])
-with col2:
-    if st.button("繼續", type="primary"):
-        st.session_state.Intro_viewed = True
-        st.switch_page("pages/00_Notice.py")
+    components.html(html, height=height_px + 60, scrolling=False)
