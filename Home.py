@@ -261,7 +261,7 @@ if Intro_DIR.exists():
 if imgs:
     # ✅ 跑馬燈顯示（可調慢：px_per_sec 越小越慢）
     # reverse_order=True 代表反轉順序；如果你現在順序已正常就改 False
-    marquee_images([str(p) for p in imgs], height_px=520, px_per_sec=35, reverse_order=False)
+    marquee_images([str(p) for p in imgs], height_px=100, px_per_sec=50, reverse_order=True)
 else:
     st.info(
         "尚未放入簡介圖片。\n\n"
