@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any, Tuple
+from collections.abc import Mapping  # ✅ NEW: 支援 AttrDict / 任何 Mapping
 
 import streamlit as st
 import gspread
@@ -28,15 +29,14 @@ def _load_sa_info_from_secrets() -> Dict[str, Any]:
     """
     從 Streamlit secrets 讀取 service account：
     - 支援兩種格式：
-      1) st.secrets["gcp_service_account"] 是「JSON字串」(推薦)
-      2) st.secrets["gcp_service_account"] 是「TOML dict」([gcp_service_account] ...)
+      1) st.secrets["gcp_service_account"] 是「JSON字串」
+      2) st.secrets["gcp_service_account"] 是「TOML table」(Streamlit 會給 AttrDict)
     並修正 private_key 換行格式。
     """
     if "gcp_service_account" not in st.secrets:
         raise KeyError(
             "st.secrets 找不到 key 'gcp_service_account'。\n"
-            "請到 Streamlit Cloud -> App settings -> Secrets 設定。\n"
-            "推薦用：gcp_service_account = \"\"\"{...整份JSON...}\"\"\""
+            "請到 Streamlit Cloud -> App settings -> Secrets 設定。"
         )
 
     raw = st.secrets["gcp_service_account"]
@@ -48,8 +48,8 @@ def _load_sa_info_from_secrets() -> Dict[str, Any]:
         except Exception as e:
             raise ValueError(f"gcp_service_account 是字串，但不是合法 JSON：{e}")
 
-    # ✅ 情況 2：Secrets 是 TOML dict
-    elif isinstance(raw, dict):
+    # ✅ 情況 2：Secrets 是 Mapping（dict / AttrDict / 其他）
+    elif isinstance(raw, Mapping):
         sa = dict(raw)
 
     else:
@@ -227,23 +227,19 @@ def write_to_google_sheet(
         return True, "已寫入 Google Sheet"
 
     except gspread.exceptions.APIError as e:
-        # 常見：403 沒分享、404 找不到試算表/分頁、quota
         return False, f"寫入 Google Sheet 失敗（APIError）：{e}"
 
     except Exception as e:
         return False, f"寫入 Google Sheet 失敗：{e}"
 
 
-# ----------------------------
-# Optional: quick self-test in app
-# ----------------------------
 def self_test(branch: str = "A") -> Tuple[bool, str]:
     """
     可在 app 啟動時呼叫，用來測試連線是否成功（不寫入）
     """
     try:
         ws = _open_worksheet(branch)
-        _ = ws.title  # 讀取標題確認可存取
+        _ = ws.title
         return True, f"連線成功：{SPREADSHEET_NAME} / {ws.title}"
     except Exception as e:
         return False, f"連線測試失敗：{e}"
