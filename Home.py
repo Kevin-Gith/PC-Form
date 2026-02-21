@@ -23,7 +23,7 @@ def _img_to_data_uri(path: Path) -> str:
     b64 = base64.b64encode(b).decode("utf-8")
     return f"data:{mime};base64,{b64}"
 
-def marquee_images(image_paths, height_px=100, duration_sec=100):
+def marquee_images(image_paths, height_px=1000, duration_sec=1000):
     """
     水平跑馬燈（由左到右移動，無限循環）。
     - height_px：顯示高度
