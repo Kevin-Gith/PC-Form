@@ -27,8 +27,8 @@ def _img_to_data_uri(path: Path) -> str:
 
 def marquee_images(image_paths, height_px=520, px_per_sec=35, reverse_order=False):
     """
-    水平跑馬燈（無縫循環）+ 點擊放大檢視
-    - height_px：圖片高度
+    水平跑馬燈（無縫循環）+ 右上角放大按鈕（開啟全部圖片相簿）+ 點縮圖再放大
+    - height_px：跑馬燈圖片高度
     - px_per_sec：每秒移動像素（越小越慢），建議 25~80
     - reverse_order：是否反轉顯示順序（照片順序反了就 True）
     """
@@ -36,11 +36,17 @@ def marquee_images(image_paths, height_px=520, px_per_sec=35, reverse_order=Fals
     if reverse_order:
         uris = uris[::-1]
 
-    # 為了無縫循環：把內容複製一份接在後面
-    items = uris + uris
+    # 無縫跑馬燈：複製一份接在後面
+    marquee_items = uris + uris
+    marquee_html = "\n".join(
+        f'<img src="{u}" class="marquee-img" loading="lazy" />' for u in marquee_items
+    )
 
-    imgs_html = "\n".join(
-        f'<img src="{u}" class="marquee-img" loading="lazy" />' for u in items
+    # Gallery：只用原始清單（不要複製）
+    gallery_html = "\n".join(
+        f'<button class="thumb-btn" data-src="{u}" title="點擊放大">'
+        f'<img src="{u}" class="thumb-img" loading="lazy"/></button>'
+        for u in uris
     )
 
     html = f"""
@@ -50,6 +56,7 @@ def marquee_images(image_paths, height_px=520, px_per_sec=35, reverse_order=Fals
         overflow: hidden;
         border-radius: 16px;
         background: transparent;
+        position: relative;
       }}
 
       .marquee-track {{
@@ -77,12 +84,34 @@ def marquee_images(image_paths, height_px=520, px_per_sec=35, reverse_order=Fals
         transition: transform 120ms ease;
       }}
 
-      @media (max-width: 768px) {{
-        .marquee-img {{ height: 320px; }}
+      /* 右上角放大按鈕 */
+      .open-gallery {{
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 10;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 0;
+        border-radius: 999px;
+        padding: 10px 14px;
+        cursor: pointer;
+        background: rgba(0,0,0,0.55);
+        color: rgba(255,255,255,0.95);
+        font-size: 14px;
+      }}
+      .open-gallery:hover {{
+        background: rgba(0,0,0,0.68);
       }}
 
-      /* ====== Modal (Zoom viewer) ====== */
-      .zoom-modal {{
+      @media (max-width: 768px) {{
+        .marquee-img {{ height: 320px; }}
+        .open-gallery {{ padding: 9px 12px; font-size: 13px; }}
+      }}
+
+      /* ===== Modal base ===== */
+      .modal {{
         position: fixed;
         inset: 0;
         background: rgba(0,0,0,0.75);
@@ -90,24 +119,12 @@ def marquee_images(image_paths, height_px=520, px_per_sec=35, reverse_order=Fals
         align-items: center;
         justify-content: center;
         z-index: 999999;
-        padding: 24px;
+        padding: 20px;
       }}
-
-      .zoom-modal.open {{
+      .modal.open {{
         display: flex;
       }}
-
-      .zoom-content {{
-        max-width: min(1200px, 96vw);
-        max-height: 92vh;
-        width: auto;
-        height: auto;
-        border-radius: 14px;
-        box-shadow: 0 18px 60px rgba(0,0,0,0.6);
-        background: rgba(20,20,20,0.2);
-      }}
-
-      .zoom-close {{
+      .modal-close {{
         position: fixed;
         top: 18px;
         right: 18px;
@@ -121,12 +138,19 @@ def marquee_images(image_paths, height_px=520, px_per_sec=35, reverse_order=Fals
         cursor: pointer;
         z-index: 1000000;
       }}
-
-      .zoom-close:hover {{
+      .modal-close:hover {{
         background: rgba(255,255,255,0.22);
       }}
 
-      .zoom-hint {{
+      /* ===== Zoom (single) ===== */
+      .zoom-img {{
+        max-width: min(1200px, 96vw);
+        max-height: 92vh;
+        border-radius: 14px;
+        box-shadow: 0 18px 60px rgba(0,0,0,0.6);
+        background: rgba(20,20,20,0.2);
+      }}
+      .hint {{
         position: fixed;
         bottom: 14px;
         left: 50%;
@@ -136,19 +160,97 @@ def marquee_images(image_paths, height_px=520, px_per_sec=35, reverse_order=Fals
         z-index: 1000000;
         user-select: none;
       }}
+
+      /* ===== Gallery (all images) ===== */
+      .gallery-panel {{
+        width: min(1200px, 96vw);
+        max-height: 90vh;
+        background: rgba(20,20,20,0.92);
+        border-radius: 16px;
+        box-shadow: 0 18px 60px rgba(0,0,0,0.6);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }}
+
+      .gallery-header {{
+        padding: 14px 16px;
+        color: rgba(255,255,255,0.92);
+        font-size: 15px;
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }}
+
+      .gallery-count {{
+        color: rgba(255,255,255,0.68);
+        font-size: 13px;
+      }}
+
+      .gallery-grid {{
+        padding: 14px;
+        overflow: auto;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+      }}
+
+      @media (max-width: 1024px) {{
+        .gallery-grid {{ grid-template-columns: repeat(3, minmax(0, 1fr)); }}
+      }}
+      @media (max-width: 640px) {{
+        .gallery-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+      }}
+
+      .thumb-btn {{
+        border: 0;
+        padding: 0;
+        background: transparent;
+        cursor: zoom-in;
+      }}
+
+      .thumb-img {{
+        width: 100%;
+        height: 160px;
+        object-fit: cover;
+        border-radius: 12px;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+      }}
+      .thumb-btn:hover .thumb-img {{
+        transform: scale(1.01);
+        transition: transform 120ms ease;
+      }}
     </style>
 
     <div class="marquee-wrap">
+      <button id="openGallery" class="open-gallery" type="button">🔍 放大</button>
       <div id="track" class="marquee-track">
-        {imgs_html}
+        {marquee_html}
       </div>
     </div>
 
-    <!-- Zoom Modal -->
-    <div id="zoomModal" class="zoom-modal" aria-hidden="true">
-      <button id="zoomClose" class="zoom-close" aria-label="Close">✕</button>
-      <img id="zoomImg" class="zoom-content" src="" alt="Zoomed image" />
-      <div class="zoom-hint">點背景或按 ESC 關閉</div>
+    <!-- Gallery Modal: show ALL images -->
+    <div id="galleryModal" class="modal" aria-hidden="true">
+      <button id="galleryClose" class="modal-close" aria-label="Close">✕</button>
+      <div class="gallery-panel" role="dialog" aria-modal="true">
+        <div class="gallery-header">
+          <div>全部圖片</div>
+          <div class="gallery-count">共 {len(uris)} 張（點縮圖放大）</div>
+        </div>
+        <div id="galleryGrid" class="gallery-grid">
+          {gallery_html}
+        </div>
+      </div>
+      <div class="hint">點背景或按 ESC 關閉</div>
+    </div>
+
+    <!-- Zoom Modal: single image -->
+    <div id="zoomModal" class="modal" aria-hidden="true">
+      <button id="zoomClose" class="modal-close" aria-label="Close">✕</button>
+      <img id="zoomImg" class="zoom-img" src="" alt="Zoomed image" />
+      <div class="hint">點背景或按 ESC 關閉</div>
     </div>
 
     <script>
@@ -156,11 +258,10 @@ def marquee_images(image_paths, height_px=520, px_per_sec=35, reverse_order=Fals
         const track = document.getElementById("track");
         const pxPerSec = {px_per_sec};
 
-        // ====== Marquee speed: fixed px/sec ======
         function startMarquee() {{
-          // items = uris + uris，所以一半寬度就是循環距離
+          // duplicated items => half width is loop distance
           const distance = track.scrollWidth / 2;
-          const duration = distance / pxPerSec; // seconds
+          const duration = distance / pxPerSec;
 
           const style = document.createElement("style");
           style.innerHTML = `
@@ -175,7 +276,7 @@ def marquee_images(image_paths, height_px=520, px_per_sec=35, reverse_order=Fals
           document.head.appendChild(style);
         }}
 
-        // 等圖片載入後再算寬度（更準）
+        // wait images loaded for accurate width
         const imgs = track.querySelectorAll("img");
         let loaded = 0;
         imgs.forEach(img => {{
@@ -193,52 +294,77 @@ def marquee_images(image_paths, height_px=520, px_per_sec=35, reverse_order=Fals
             }});
           }}
         }});
-
-        // 保險：若某些瀏覽器事件沒觸發，延遲啟動
         setTimeout(startMarquee, 900);
 
-        // ====== Zoom modal ======
-        const modal = document.getElementById("zoomModal");
-        const zoomImg = document.getElementById("zoomImg");
-        const closeBtn = document.getElementById("zoomClose");
+        // ===== Modals =====
+        const galleryModal = document.getElementById("galleryModal");
+        const galleryClose = document.getElementById("galleryClose");
+        const openGalleryBtn = document.getElementById("openGallery");
 
-        function openModal(src) {{
-          zoomImg.src = src;
-          modal.classList.add("open");
-          modal.setAttribute("aria-hidden", "false");
+        const zoomModal = document.getElementById("zoomModal");
+        const zoomClose = document.getElementById("zoomClose");
+        const zoomImg = document.getElementById("zoomImg");
+
+        function openGallery() {{
+          galleryModal.classList.add("open");
+          galleryModal.setAttribute("aria-hidden", "false");
+        }}
+        function closeGallery() {{
+          galleryModal.classList.remove("open");
+          galleryModal.setAttribute("aria-hidden", "true");
         }}
 
-        function closeModal() {{
-          modal.classList.remove("open");
-          modal.setAttribute("aria-hidden", "true");
+        function openZoom(src) {{
+          zoomImg.src = src;
+          zoomModal.classList.add("open");
+          zoomModal.setAttribute("aria-hidden", "false");
+        }}
+        function closeZoom() {{
+          zoomModal.classList.remove("open");
+          zoomModal.setAttribute("aria-hidden", "true");
           zoomImg.src = "";
         }}
 
-        // 點任何圖片放大
+        openGalleryBtn.addEventListener("click", openGallery);
+        galleryClose.addEventListener("click", closeGallery);
+        zoomClose.addEventListener("click", closeZoom);
+
+        // click marquee image -> zoom
         track.addEventListener("click", (e) => {{
           const t = e.target;
           if (t && t.tagName === "IMG") {{
-            openModal(t.src);
+            openZoom(t.src);
           }}
         }});
 
-        // 關閉：右上角按鈕
-        closeBtn.addEventListener("click", closeModal);
-
-        // 關閉：點背景（但不能點到圖片）
-        modal.addEventListener("click", (e) => {{
-          if (e.target === modal) closeModal();
+        // click thumbnail -> zoom
+        const grid = document.getElementById("galleryGrid");
+        grid.addEventListener("click", (e) => {{
+          const btn = e.target.closest(".thumb-btn");
+          if (!btn) return;
+          const src = btn.getAttribute("data-src");
+          if (src) openZoom(src);
         }});
 
-        // 關閉：ESC
+        // click backdrop to close
+        galleryModal.addEventListener("click", (e) => {{
+          if (e.target === galleryModal) closeGallery();
+        }});
+        zoomModal.addEventListener("click", (e) => {{
+          if (e.target === zoomModal) closeZoom();
+        }});
+
+        // ESC: close zoom first, then gallery
         document.addEventListener("keydown", (e) => {{
-          if (e.key === "Escape") closeModal();
+          if (e.key !== "Escape") return;
+          if (zoomModal.classList.contains("open")) closeZoom();
+          else if (galleryModal.classList.contains("open")) closeGallery();
         }});
       }})();
     </script>
     """
 
-    components.html(html, height=height_px + 70, scrolling=False)
+    components.html(html, height=height_px + 80, scrolling=False)
 
 
 # -------------------------
@@ -259,9 +385,8 @@ if Intro_DIR.exists():
         imgs += sorted(Intro_DIR.glob(ext))
 
 if imgs:
-    # ✅ 跑馬燈顯示（可調慢：px_per_sec 越小越慢）
-    # reverse_order=True 代表反轉順序；如果你現在順序已正常就改 False
-    marquee_images([str(p) for p in imgs], height_px=300, px_per_sec=50, reverse_order=True)
+    # 速度：px_per_sec 越小越慢；照片順序反了就把 reverse_order=True
+    marquee_images([str(p) for p in imgs], height_px=520, px_per_sec=35, reverse_order=True)
 else:
     st.info(
         "尚未放入簡介圖片。\n\n"
