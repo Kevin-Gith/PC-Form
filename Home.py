@@ -1,11 +1,43 @@
-def marquee_images(image_paths, height_px=520, px_per_sec=45):
+import streamlit as st
+from UI import hide_sidebar
+from pathlib import Path
+import base64
+import mimetypes
+import streamlit.components.v1 as components
+
+hide_sidebar(page_title="電腦組裝服務諮詢表單")
+
+# -------------------------
+# Helpers
+# -------------------------
+def ss_setdefault(key: str, value):
+    if key not in st.session_state:
+        st.session_state[key] = value
+
+
+def _img_to_data_uri(path: Path) -> str:
+    """把本機圖片轉成 data URI，讓 HTML 可以直接顯示。"""
+    mime, _ = mimetypes.guess_type(str(path))
+    if mime is None:
+        mime = "image/png"
+    b = path.read_bytes()
+    b64 = base64.b64encode(b).decode("utf-8")
+    return f"data:{mime};base64,{b64}"
+
+
+def marquee_images(image_paths, height_px=520, px_per_sec=35, reverse_order=False):
     """
     水平跑馬燈（無縫循環）+ 點擊放大檢視
     - height_px：圖片高度
     - px_per_sec：每秒移動像素（越小越慢），建議 25~80
+    - reverse_order：是否反轉顯示順序（照片順序反了就 True）
     """
-    uris = [_img_to_data_uri(Path(p)) for p in image_paths][::-1]  # 需要反轉順序就保留
-    items = uris + uris  # 無縫循環
+    uris = [_img_to_data_uri(Path(p)) for p in image_paths]
+    if reverse_order:
+        uris = uris[::-1]
+
+    # 為了無縫循環：把內容複製一份接在後面
+    items = uris + uris
 
     imgs_html = "\n".join(
         f'<img src="{u}" class="marquee-img" loading="lazy" />' for u in items
@@ -54,7 +86,7 @@ def marquee_images(image_paths, height_px=520, px_per_sec=45):
         position: fixed;
         inset: 0;
         background: rgba(0,0,0,0.75);
-        display: none;            /* hidden by default */
+        display: none;
         align-items: center;
         justify-content: center;
         z-index: 999999;
@@ -126,14 +158,15 @@ def marquee_images(image_paths, height_px=520, px_per_sec=45):
 
         // ====== Marquee speed: fixed px/sec ======
         function startMarquee() {{
-          const distance = track.scrollWidth / 2; // items duplicated
-          const duration = distance / pxPerSec;
+          // items = uris + uris，所以一半寬度就是循環距離
+          const distance = track.scrollWidth / 2;
+          const duration = distance / pxPerSec; // seconds
 
           const style = document.createElement("style");
           style.innerHTML = `
             @keyframes marquee {{
-              0%   {{ transform: translateX(0px); }}
-              100% {{ transform: translateX(-${{distance}}px); }}
+              0%   {{ transform: translateX(-${{distance}}px); }}
+              100% {{ transform: translateX(0px); }}
             }}
             #track {{
               animation: marquee ${{duration}}s linear infinite;
@@ -142,7 +175,7 @@ def marquee_images(image_paths, height_px=520, px_per_sec=45):
           document.head.appendChild(style);
         }}
 
-        // Wait images loaded so widths are correct
+        // 等圖片載入後再算寬度（更準）
         const imgs = track.querySelectorAll("img");
         let loaded = 0;
         imgs.forEach(img => {{
@@ -160,6 +193,8 @@ def marquee_images(image_paths, height_px=520, px_per_sec=45):
             }});
           }}
         }});
+
+        // 保險：若某些瀏覽器事件沒觸發，延遲啟動
         setTimeout(startMarquee, 900);
 
         // ====== Zoom modal ======
@@ -179,7 +214,7 @@ def marquee_images(image_paths, height_px=520, px_per_sec=45):
           zoomImg.src = "";
         }}
 
-        // Click any image to zoom
+        // 點任何圖片放大
         track.addEventListener("click", (e) => {{
           const t = e.target;
           if (t && t.tagName === "IMG") {{
@@ -187,15 +222,15 @@ def marquee_images(image_paths, height_px=520, px_per_sec=45):
           }}
         }});
 
-        // Close: button
+        // 關閉：右上角按鈕
         closeBtn.addEventListener("click", closeModal);
 
-        // Close: click backdrop (but not the image)
+        // 關閉：點背景（但不能點到圖片）
         modal.addEventListener("click", (e) => {{
           if (e.target === modal) closeModal();
         }});
 
-        // Close: ESC
+        // 關閉：ESC
         document.addEventListener("keydown", (e) => {{
           if (e.key === "Escape") closeModal();
         }});
@@ -203,4 +238,43 @@ def marquee_images(image_paths, height_px=520, px_per_sec=45):
     </script>
     """
 
-    components.html(html, height=height_px + 60, scrolling=False)
+    components.html(html, height=height_px + 70, scrolling=False)
+
+
+# -------------------------
+# 如果你希望每次打開都當作新客戶（清空上次資料），把下面這行打開
+st.session_state.clear()
+
+# -------------------------
+# UI
+# -------------------------
+st.title("電腦組裝服務諮詢表單")
+st.caption("歡迎閱讀簡介，點選「繼續」後進入事前須知。")
+
+# ✅ PPT 轉圖片放這裡：Assets/Intro/01.png、02.png...
+Intro_DIR = Path("Assets/Intro")
+imgs = []
+if Intro_DIR.exists():
+    for ext in ("*.PNG", "*.JPG", "*.png", "*.jpg", "*.jpeg", "*.webp"):
+        imgs += sorted(Intro_DIR.glob(ext))
+
+if imgs:
+    # ✅ 跑馬燈顯示（可調慢：px_per_sec 越小越慢）
+    # reverse_order=True 代表反轉順序；如果你現在順序已正常就改 False
+    marquee_images([str(p) for p in imgs], height_px=520, px_per_sec=35, reverse_order=False)
+else:
+    st.info(
+        "尚未放入簡介圖片。\n\n"
+        "請將 PPT 每頁匯出成圖片（01.png、02.png…）後放到：Assets/Intro/"
+    )
+
+st.divider()
+
+# 記錄已看過簡介（可選）
+ss_setdefault("Intro_viewed", False)
+
+col1, col2 = st.columns([1, 1])
+with col2:
+    if st.button("繼續", type="primary"):
+        st.session_state.Intro_viewed = True
+        st.switch_page("pages/00_Notice.py")
