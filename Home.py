@@ -386,7 +386,7 @@ if Intro_DIR.exists():
 
 if imgs:
     # 速度：px_per_sec 越小越慢；照片順序反了就把 reverse_order=True
-    marquee_images([str(p) for p in imgs], height_px=520, px_per_sec=35, reverse_order=True)
+    marquee_images([str(p) for p in imgs], height_px=520, px_per_sec=35, reverse_order=False)
 else:
     st.info(
         "尚未放入簡介圖片。\n\n"
