@@ -1,6 +1,5 @@
 import streamlit as st
 from UI import hide_sidebar
-from pathlib import Path
 
 hide_sidebar(page_title="事前須知")
 
@@ -70,7 +69,6 @@ NOTICE_MD = """
 2. 本方得於不揭露客戶個人資料之前提下，將組裝完成之主機照片或施工成果用於作品展示、社群平台或行銷用途。
 
 **十、圖片與示意說明**
-
 1. 本表單中所使用之選項圖片，多為網路截圖或示意圖，僅供參考。
 2. 圖片之顏色、外觀、尺寸比例、配件內容等，可能因品牌型號、拍攝角度或實際庫存而有所差異，請以實際商品/實機為準。
 3. 若有特定外觀或型號需求，請於表單備註或後續聯繫時提出，以利確認。
@@ -80,17 +78,23 @@ NOTICE_MD = """
 2. 本服務保留最終解釋權。
 """
 
-# ✅ 用 CSS 直接把「下面那個 container」變成可捲動大框（不會出現空白）
+# ✅ Dark/Light 都可讀：全部用 Streamlit theme 變數，不寫死白底白字
 st.markdown(
     """
 <style>
-/* 這個 selector 會鎖定「緊接著本段 CSS 之後」第一個 st.container 的外層 */
+:root{
+  --pc-text: var(--text-color);
+  --pc-card: var(--secondary-background-color);
+  --pc-border: rgba(120,120,120,.25);
+}
+
+/* 鎖定 marker 所在的區塊：把那個大框變成可捲動 */
 div[data-testid="stVerticalBlock"]:has(> div > div > div.notice-container){
-  border: 1px solid #e6e6e6;
-  background: #f6f7f9;
+  border: 1px solid var(--pc-border);
+  background: var(--pc-card);
   border-radius: 12px;
   padding: 18px 18px;
-  height: calc(100vh - 230px); /* 接近滿版 */
+  height: calc(100vh - 230px);
   overflow-y: auto;
 }
 
@@ -98,36 +102,28 @@ div[data-testid="stVerticalBlock"]:has(> div > div > div.notice-container){
 div[data-testid="stVerticalBlock"]:has(> div > div > div.notice-container) *{
   font-size: 16px;
   line-height: 1.75;
+  color: var(--pc-text);
+}
+
+/* 內層盒子：同樣不要固定白色 */
+.notice-box{
+  border: 1px solid var(--pc-border);
+  background: var(--pc-card);
+  padding: 24px;
+  border-radius: 14px;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.04);
 }
 </style>
 """,
     unsafe_allow_html=True,
 )
 
-# 放一個 marker div，讓 CSS 能鎖定這個 container
+# marker：讓 :has(...) 能鎖定這個區塊
 st.markdown('<div class="notice-container"></div>', unsafe_allow_html=True)
 
+# ✅ 注意：你原本的縮排有問題，這裡修正為「真的放進 container」
 with st.container():
-    st.markdown("""
-<style>
-.notice-box {
-    border: 1px solid #e3e3e3;
-    background-color: #f9fafb;
-    padding: 24px;
-    border-radius: 14px;
-    box-shadow: 0 4px 18px rgba(0,0,0,0.04);
-    line-height: 1.8;
-}
-.notice-box h3 {
-    margin-top: 0px;
-}
-</style>
-""", unsafe_allow_html=True)
-
-st.markdown(
-    f'<div class="notice-box">{NOTICE_MD}</div>',
-    unsafe_allow_html=True
-)
+    st.markdown(f'<div class="notice-box">{NOTICE_MD}</div>', unsafe_allow_html=True)
 
 agree = st.checkbox("我已閱讀並同意以上事前須知", value=st.session_state.get("agreed", False))
 
